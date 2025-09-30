@@ -1,88 +1,46 @@
-import Constants from 'expo-constants';
+// src/services/falService.ts
+import { PRESETS } from '../screens/StyleScreen';
+import { fal } from '@fal-ai/client';
 
-type GenerateParams = {
-  imageUri: string;
-  preset: string;
-};
+// ENV (expo: app.json -> extra.* üzerinden veya process.env)
+const MOCK = String(process.env.EXPO_PUBLIC_MOCK_MODE ?? 'true') === 'true';
+const FAL_KEY = process.env.EXPO_PUBLIC_FAL_KEY || '';
 
-export type GenerateResult = {
-  ok: boolean;
-  url?: string;
-  error?: string;
-};
+if (FAL_KEY) {
+  fal.config({ credentials: FAL_KEY });
+}
 
-// Preset -> prompt haritalama
-const PRESET_PROMPTS: Record<string, string> = {
-  christmas_table:
-    "A festive Christmas table setup with warm lights, pine branches and soft bokeh, product centered, photorealistic, studio lighting, natural shadows, 4k",
-  beach_cafe:
-    "A sunny beach cafe table scene with sea in the background, soft natural light, light wood table, product centered, photorealistic, 4k",
-  minimal_office:
-    "Minimalist white office desk with soft daylight, faint shadows, clean background, product centered, photorealistic, 4k",
-};
+function buildPrompt(preset: string) {
+  const p = PRESETS.find((x) => x.key === preset);
+  return p?.stylePrompt ?? 'clean ecommerce studio';
+}
 
-const PLACEHOLDERS: Record<string, string> = {
-  christmas_table: 'https://images.unsplash.com/photo-1512386233331-5c180f0b5b4e?q=80&w=1200&auto=format&fit=crop',
-  beach_cafe: 'https://images.unsplash.com/photo-1498654200943-1088dd4438ae?q=80&w=1200&auto=format&fit=crop',
-  minimal_office: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?q=80&w=1200&auto=format&fit=crop',
-};
-
-export async function generateImage({ imageUri, preset }: GenerateParams): Promise<GenerateResult> {
-  const extra = Constants.expoConfig?.extra as any;
-  const MOCK_MODE = !!extra?.MOCK_MODE;
-  const FAL_ENDPOINT = extra?.FAL_ENDPOINT as string | undefined;
-  const FAL_API_KEY = extra?.FAL_API_KEY as string | undefined;
-
-  // 1) Mock modu: anahtar/endpoint yoksa veya özellikle istenirse
-  if (MOCK_MODE || !FAL_ENDPOINT || !FAL_API_KEY) {
-    // 800ms bekletip placeholder dönelim (demo akışı)
-    await new Promise(r => setTimeout(r, 800));
-    return { ok: true, url: PLACEHOLDERS[preset] ?? PLACEHOLDERS.minimal_office };
-  }
-
-  // 2) Gerçek çağrı (örnek şema)
-  // Burada tipik bir multipart upload gösteriyoruz.
+export async function generateImage({ imageUri, preset }: { imageUri: string; preset: string; }) {
   try {
-    const body = new FormData();
-    body.append('prompt', PRESET_PROMPTS[preset] ?? PRESET_PROMPTS.minimal_office);
-
-    // RN/Expo'da yerel görseli multipart'a böyle ekliyoruz:
-    // @ts-ignore: React Native FormData file object
-body.append('image', {
-  uri: imageUri,
-  name: 'input.jpg',
-  type: 'image/jpeg',
-} as any);
-
-
-const res = await fetch(FAL_ENDPOINT, {
-  method: 'POST',
-  headers: {
-    // ÖNEMLİ: Bearer değil, Key
-    Authorization: `Key ${FAL_API_KEY}`,
-    // FormData kullanırken Content-Type verme; boundary’i fetch ayarlar.
-  },
-  body,
-});
-
-    if (!res.ok) {
-      const txt = await res.text();
-      return { ok: false, error: `FAL error ${res.status}: ${txt}` };
+    if (MOCK) {
+      return { ok: true, url: 'https://picsum.photos/1024?random=' + Math.random() };
     }
 
-    // API yanıtının şeması sağlayıcıya göre değişir.
-    // Örneğin { images: [{ url: "..." }]} veya { output_url: "..." }
-    const data = await res.json();
+    // 1) yerel görseli blob’a çevir
+    const blob = await (await fetch(imageUri)).blob();
+    // 2) FAL storage’a yükle → URL al
+    const file = new File([blob] as any, 'input.jpg', { type: blob.type || 'image/jpeg' } as any) as any;
+    const inputUrl = await fal.storage.upload(file); // returns https URL
 
-    // Aşağıdaki iki satırdan biri gerçek API şemasına göre uyarlanmalı:
-    const url = data?.images?.[0]?.url || data?.output_url || data?.url;
+    // 3) image-to-image endpoint (USO)
+    const { data } = await fal.subscribe('fal-ai/uso/image-to-image', {
+      input: {
+        image_url: inputUrl,
+        prompt: buildPrompt(preset),
+        guidance_scale: 3.5,
+      }
+    });
 
-    if (!url) {
-      return { ok: false, error: 'FAL response has no image url' };
-    }
-
+    // data.images[0].url benzeri
+    const url = (data as any)?.images?.[0]?.url ?? (data as any)?.image?.url;
+    if (!url) throw new Error('FAL response missing url');
     return { ok: true, url };
   } catch (e: any) {
-    return { ok: false, error: e?.message ?? 'Unknown error' };
+    return { ok: false, error: e?.message ?? String(e) };
   }
 }

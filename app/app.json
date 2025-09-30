@@ -1,5 +1,12 @@
 {
   "expo": {
+    "extra": {
+      "EXPO_PUBLIC_ADAPTY_SDK_KEY": "public_live_2OpFSWdm.QwSxxv5vaFAeJfcLaz96",
+      "EXPO_PUBLIC_ADAPTY_PLACEMENT_ID": "CAiN"
+    },
+    "plugins": [
+      "react-native-adapty"
+    ],
     "name": "app",
     "slug": "app",
     "version": "1.0.0",
@@ -26,5 +33,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     }
+   
   }
 }
