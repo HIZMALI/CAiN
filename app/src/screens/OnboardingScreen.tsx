@@ -25,8 +25,14 @@ export default function OnboardingScreen({ navigation }: Props) {
       listRef.current?.scrollToIndex({ index: next, animated: true });
       setIdx(next);
     } else {
-      if (dontShow) await AsyncStorage.setItem('cain/onboardingDone', '1');
-      navigation.replace('Auth');
+      if (dontShow) {
+        await AsyncStorage.setItem('cain/onboardingDone', '1');
+      }
+      // stack'i resetle → Auth ekranına geç
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Auth' }],
+      });
     }
   };
 
@@ -39,7 +45,9 @@ export default function OnboardingScreen({ navigation }: Props) {
         showsHorizontalScrollIndicator={false}
         data={SLIDES}
         keyExtractor={(i) => i.key}
-        onMomentumScrollEnd={(e) => setIdx(Math.round(e.nativeEvent.contentOffset.x / W))}
+        onMomentumScrollEnd={(e) =>
+          setIdx(Math.round(e.nativeEvent.contentOffset.x / W))
+        }
         renderItem={({ item }) => (
           <View style={[s.slide, { width: W }]}>
             <Text style={s.title}>{item.title}</Text>
@@ -49,16 +57,26 @@ export default function OnboardingScreen({ navigation }: Props) {
       />
 
       <View style={s.dots}>
-        {SLIDES.map((_, i) => <View key={i} style={[s.dot, i === idx && s.dotActive]} />)}
+        {SLIDES.map((_, i) => (
+          <View key={i} style={[s.dot, i === idx && s.dotActive]} />
+        ))}
       </View>
 
       <View style={s.row}>
         <Pressable onPress={() => setDontShow(!dontShow)}>
-          <Text style={s.checkbox}>{dontShow ? '☑︎' : '☐'} Bir daha gösterme</Text>
+          <Text style={s.checkbox}>
+            {dontShow ? '☑︎' : '☐'} Bir daha gösterme
+          </Text>
         </Pressable>
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Pressable onPress={() => go(SLIDES.length - 1)}><Text style={s.link}>Atla</Text></Pressable>
-          <Pressable onPress={() => go()}><Text style={s.btn}>{idx === SLIDES.length - 1 ? 'Başla' : 'İleri →'}</Text></Pressable>
+          <Pressable onPress={() => go(SLIDES.length - 1)}>
+            <Text style={s.link}>Atla</Text>
+          </Pressable>
+          <Pressable onPress={() => go()}>
+            <Text style={s.btn}>
+              {idx === SLIDES.length - 1 ? 'Başla' : 'İleri →'}
+            </Text>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -73,8 +91,21 @@ const s = StyleSheet.create({
   dots: { flexDirection: 'row', alignSelf: 'center', gap: 6, marginVertical: 12 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ddd' },
   dotActive: { backgroundColor: '#111' },
-  row: { marginTop: 'auto', paddingHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  row: {
+    marginTop: 'auto',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   checkbox: { color: '#333' },
   link: { color: '#666', fontWeight: '600' },
-  btn: { color: '#fff', backgroundColor: '#111', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, overflow: 'hidden' }
+  btn: {
+    color: '#fff',
+    backgroundColor: '#111',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
 });
